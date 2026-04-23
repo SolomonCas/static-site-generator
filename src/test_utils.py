@@ -1,7 +1,7 @@
 import unittest
 
 from textnode import TextNode, TextType
-from utils import text_node_to_html_node, split_nodes_delimiter, extract_markdown_images, extract_markdown_links, split_nodes_image, split_nodes_link, text_to_textnodes, markdown_to_blocks, block_to_block_type
+from utils import text_node_to_html_node, split_nodes_delimiter, extract_markdown_images, extract_markdown_links, split_nodes_image, split_nodes_link, text_to_textnodes, markdown_to_blocks, block_to_block_type, extract_title, markdown_to_html_node
 from blocktype import BlockType
 
 class TestUtils(unittest.TestCase):
@@ -41,7 +41,7 @@ class TestUtils(unittest.TestCase):
         node = TextNode("This is a text node", TextType.IMAGE, "https://google.com")
         html_node = text_node_to_html_node(node)
         self.assertEqual(html_node.tag, "img")
-        self.assertEqual(html_node.value, None)
+        self.assertEqual(html_node.value, "")
         self.assertEqual(html_node.props, {"src": "https://google.com", "alt": "This is a text node"})
 
     def test_split_nodes_delimiter_more_than_one_node(self):
@@ -193,7 +193,7 @@ This is the same paragraph on a new line
             ]
         )
 
-    def test_block_to_block_type_code(self):
+    def test_block_to_block_type_multiline_code(self):
         text = """
 ```
 print("hello world")
@@ -231,8 +231,8 @@ print("hello world")
 
         self.assertEqual(block, BlockType.ORDERED)
 
-def test_paragraphs(self):
-    md = """
+    def test_paragraphs(self):
+        md = """
 This is **bolded** paragraph
 text in a p
 tag here
@@ -241,29 +241,40 @@ This is another paragraph with _italic_ text and `code` here
 
 """
 
-    node = markdown_to_html_node(md)
-    html = node.to_html()
-    self.assertEqual(
-        html,
-        "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>",
-    )
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>",
+        )
 
-def test_codeblock(self):
-    md = """
+    def test_codeblock(self):
+        md = """
 ```
 This is text that _should_ remain
 the **same** even with inline stuff
 ```
 """
 
-    node = markdown_to_html_node(md)
-    html = node.to_html()
-    self.assertEqual(
-        html,
-        "<div><pre><code>This is text that _should_ remain\nthe **same** even with inline stuff\n</code></pre></div>",
-    )
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><pre><code>This is text that _should_ remain\nthe **same** even with inline stuff\n</code></pre></div>",
+        )
 
+    def test_extract_title(self):
+        md = "# This is a header\n## This is sub header"
 
+        self.assertEqual(extract_title(md), "This is a header")
+
+    def test_extract_title_exception(self):
+        md = "## This is not a header"
+
+        with self.assertRaises(Exception) as context:
+            extract_title(md)
+
+        self.assertEqual(str(context.exception), "No Title found")
 
 if __name__ == "__main__":
     unittest.main()

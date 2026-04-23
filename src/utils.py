@@ -1,6 +1,7 @@
 import re
+import os
 
-from htmlnode import LeafNode
+from htmlnode import LeafNode, ParentNode, HTMLNode
 from textnode import TextType, TextNode
 from blocktype import BlockType
 
@@ -19,7 +20,7 @@ def text_node_to_html_node(text_node):
         case TextType.LINK:
             return LeafNode("a", text_node.text, {"href": text_node.url})
         case TextType.IMAGE:
-            return LeafNode("img", None, {"src": text_node.url, "alt": text_node.text})
+            return LeafNode("img", "", {"src": text_node.url, "alt": text_node.text})
 
     return LeafNode(None, text_node.text)
 
@@ -122,9 +123,9 @@ def block_to_block_type(block):
     split_block = block.split("\n")
 
 
-    if re.match(r"#{1,6}", block):
+    if re.match(r"^(#{1,6})\s+(.*)", block):
         return BlockType.HEADING
-    if re.match(r"^\`{3}\n.*\n?\`{3}$", block):
+    if re.match(r"^```[^\n]*\n[\s\S]*?\n```$", block):
         return BlockType.CODE
 
     for line in split_block:
@@ -152,28 +153,27 @@ def markdown_to_html_node(markdown):
 
     for block in blocks:
         block_type = block_to_block_type(block)
-
         if block_type == BlockType.HEADING:
             match = re.match(r"^(#{1,6})\s+(.*)", block)
             level = len(match.group(1))
             content = match.group(2)
             children = text_to_children(content)
-            node = HTMLNode(f"h{level}", children=children)
+            node = ParentNode(f"h{level}", children=children)
 
         elif block_type == BlockType.CODE:
             # remove ```
-            content = block.strip("`").strip("\n")
+            content = block.strip("```").strip("\n")
 
             text_node = TextNode(content + "\n", TextType.TEXT)
             code_child = text_node_to_html_node(text_node)
 
-            code_node = HTMLNode("code", children=[code_child])
-            node = HTMLNode("pre", children=[code_node])
+            code_node = ParentNode("code", children=[code_child])
+            node = ParentNode("pre", children=[code_node])
 
         elif block_type == BlockType.QUOTE:
             content = "\n".join([line.lstrip("> ").strip() for line in block.split("\n")])
             children = text_to_children(content)
-            node = HTMLNode("blockquote", children=children)
+            node = ParentNode("blockquote", children=children)
 
         elif block_type == BlockType.UNORDERED:
             items = block.split("\n")
@@ -181,8 +181,8 @@ def markdown_to_html_node(markdown):
             for item in items:
                 content = item.lstrip("- ").strip()
                 children = text_to_children(content)
-                li_nodes.append(HTMLNode("li", children=children))
-            node = HTMLNode("ul", children=li_nodes)
+                li_nodes.append(ParentNode("li", children=children))
+            node = ParentNode("ul", children=li_nodes)
 
         elif block_type == BlockType.ORDERED:
             items = block.split("\n")
@@ -190,14 +190,33 @@ def markdown_to_html_node(markdown):
             for item in items:
                 content = re.sub(r"^\d+\.\s*", "", item)
                 children = text_to_children(content)
-                li_nodes.append(HTMLNode("li", children=children))
-            node = HTMLNode("ol", children=li_nodes)
+                li_nodes.append(ParentNode("li", children=children))
+            node = ParentNode("ol", children=li_nodes)
 
         else:
             children = text_to_children(block.replace("\n", " "))
-            node = HTMLNode("p", children=children)
+            node = ParentNode("p", children=children)
+
 
         parent.children.append(node)
 
     return parent
+
+def extract_title(markdown):
+    blocks = markdown_to_blocks(markdown)
+    header1 = None
+
+    for block in blocks:
+        block_type = block_to_block_type(block)
+
+        if block_type == BlockType.HEADING:
+            match = re.match(r"^(#{1,6})\s+(.*)", block)
+            level = len(match.group(1))
+            if level == 1:
+                header1 = match.group(2)
+
+    if header1 == None:
+        raise Exception("No Title found")
+
+    return header1
 
